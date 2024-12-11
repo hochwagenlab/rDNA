@@ -1,0 +1,75 @@
+##fileformat=VCFv4.1
+##reference=/scratch/ds5639/rDNA_project/Yue_2017_SK1_hiseq/SRR4074258_1/rDNA_S288C_ref/rDNA_S288C.fa
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
+##INFO=<ID=VMX,Number=1,Type=String,Description="SNP is Missense in these Read Frames">
+##INFO=<ID=VNX,Number=1,Type=String,Description="SNP is Nonsense in these Read Frames">
+##INFO=<ID=VFX,Number=1,Type=String,Description="Indel Causes Frameshift">
+##INFO=<ID=WP,Number=A,Type=Integer,Description="NEAT-GenReads ploidy indicator">
+##ALT=<ID=DEL,Description="Deletion">
+##ALT=<ID=DUP,Description="Duplication">
+##ALT=<ID=INS,Description="Insertion of novel sequence">
+##ALT=<ID=INV,Description="Inversion">
+##ALT=<ID=CNV,Description="Copy number variable region">
+##ALT=<ID=TRANS,Description="Translocation">
+##ALT=<ID=INV-TRANS,Description="Inverted translocation">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+S288C	775	.	G	A	.	PASS	WP=1
+S288C	783	.	T	G	.	PASS	WP=1
+S288C	936	.	C	CTA	.	PASS	WP=1
+S288C	968	.	G	A	.	PASS	WP=1
+S288C	1103	.	T	C	.	PASS	WP=1
+S288C	1133	.	A	G	.	PASS	WP=1
+S288C	1299	.	A	G	.	PASS	WP=1
+S288C	1399	.	T	C	.	PASS	WP=1
+S288C	1508	.	T	C	.	PASS	WP=1
+S288C	1532	.	T	C	.	PASS	WP=1
+S288C	1773	.	T	A	.	PASS	WP=1
+S288C	1802	.	A	G	.	PASS	WP=1
+S288C	1886	.	C	T	.	PASS	WP=1
+S288C	1913	.	A	T	.	PASS	WP=1
+S288C	1987	.	C	A	.	PASS	WP=1
+S288C	2297	.	A	G	.	PASS	WP=1
+S288C	2341	.	T	C	.	PASS	WP=1
+S288C	2511	.	T	C	.	PASS	WP=1
+S288C	2585	.	A	G	.	PASS	WP=1
+S288C	3115	.	G	A	.	PASS	WP=1
+S288C	3147	.	T	C	.	PASS	WP=1
+S288C	3183	.	T	C	.	PASS	WP=1
+S288C	3263	.	C	CC	.	PASS	WP=1
+S288C	3319	.	G	A	.	PASS	WP=1
+S288C	3348	.	G	C	.	PASS	WP=1
+S288C	3483	.	T	C	.	PASS	WP=1
+S288C	3601	.	A	G	.	PASS	WP=1
+S288C	3769	.	G	A	.	PASS	WP=1
+S288C	3831	.	A	T	.	PASS	WP=1
+S288C	4149	.	G	A	.	PASS	WP=1
+S288C	4161	.	G	A	.	PASS	WP=1
+S288C	4486	.	T	C	.	PASS	WP=1
+S288C	4529	.	G	A	.	PASS	WP=1
+S288C	4669	.	A	G	.	PASS	WP=1
+S288C	4893	.	C	T	.	PASS	WP=1
+S288C	5030	.	C	T	.	PASS	WP=1
+S288C	5142	.	G	A	.	PASS	WP=1
+S288C	5871	.	T	C	.	PASS	WP=1
+S288C	6214	.	C	T	.	PASS	WP=1
+S288C	6358	.	T	C	.	PASS	WP=1
+S288C	7163	.	T	C	.	PASS	WP=1
+S288C	7290	.	G	A	.	PASS	WP=1
+S288C	7295	.	T	A	.	PASS	WP=1
+S288C	7456	.	A	G	.	PASS	WP=1
+S288C	7551	.	T	G	.	PASS	WP=1
+S288C	7565	.	A	G	.	PASS	WP=1
+S288C	7632	.	T	C	.	PASS	WP=1
+S288C	7723	.	A	G	.	PASS	WP=1
+S288C	8000	.	T	C	.	PASS	WP=1
+S288C	8145	.	A	G	.	PASS	WP=1
+S288C	8180	.	G	A	.	PASS	WP=1
+S288C	8266	.	G	GCT	.	PASS	WP=1
+S288C	8343	.	C	A	.	PASS	WP=1
+S288C	8353	.	T	C	.	PASS	WP=1
+S288C	8615	.	A	C	.	PASS	WP=1
+S288C	8738	.	G	A	.	PASS	WP=1
+S288C	8869	.	C	T	.	PASS	WP=1
+S288C	9064	.	A	T	.	PASS	WP=1
+S288C	9095	.	G	T	.	PASS	WP=1

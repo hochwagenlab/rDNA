@@ -1,0 +1,17 @@
+AF are 0.005 in the golden .vcf
+**********************************
+
+Total Golden Variants:   59     Ä 0 filtered, 0 merged, 0 redundant Å
+Total Workflow Variants: 57     Ä 0 filtered, 0 merged, 0 redundant Å
+
+Perfect Matches: 57 (96.61%)
+FN variants:     2 (3.39%)
+FP variants:     0
+
+Number of equivalent variants denoted differently between the two vcfs: 1
+
+#unmappable:   0
+#low_coverage: 0
+#unknown:      2
+
+**********************************

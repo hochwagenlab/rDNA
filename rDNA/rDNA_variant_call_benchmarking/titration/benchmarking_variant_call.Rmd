@@ -1,0 +1,418 @@
+---
+title: "Benchmarking"
+author: "Daniel"
+date: "May 16, 2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+#load libraries
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(svglite)
+```
+
+#Vcf files loading and preprocessing
+```{r}
+#load .vcf file
+#header starts with ##, column names with #. comment.char takes a single character vector but c("##") didn't work. So I am doing it in several steps 
+S288C <- read.table("~/Desktop/work/rDNA_project/S288C/SRR4074255.remap.variants.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+S288C <- as.data.frame(S288C)
+#assign colnamnes
+vcf_col_names <- c("CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO")
+colnames(S288C) <- vcf_col_names
+#split INFO column into several; HRUN is only for INDEL
+#NB: if some future column that will not shared between different rows, try to explore the 'fill' argument in 'separate'
+S288C <- S288C %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+#make REF as char
+S288C$REF<-as.character(S288C$REF)
+#remove characters from the new columnus and make them appropriate class
+#[A-Z] - substring starts with a letter followed by everything else * and then the = sign. replace with nothing ("")
+S288C$DP<-as.integer(gsub("[A-Z]*=","",S288C$DP))
+S288C$AF<-as.numeric(gsub("[A-Z]*=","",S288C$AF)) #set it here for numeric bc these are NOT integers 
+S288C$SB<-as.integer(gsub("[A-Z]*=","",S288C$SB))
+S288C$DP4<-as.factor(gsub("[A-Z]*4=","",S288C$DP4)) #note the '4' in the first argument bc it starts as 'DP4='. also it contains several numbers delimited with ',' so I made it a factor
+S288C$HRUN<-as.integer(gsub("[A-Z]*=","",S288C$HRUN))
+S288C
+```
+#Data pre-filtering
+```{r}
+#HRUN: "Homopolymer length to the right of report indel position". Remove entries that have HRUN >=4 (I set this threshold arbitrary so far based on how "slippery" the polymerase is). If more, those INDELS are probably artifacts due to slippage. 
+S288C_filtered <- subset(S288C, HRUN<4 | is.na(HRUN)) #since HRUN is only assigned for indels, spcifying is.na(HRUN) keeps SNVs
+#since for this alighmnet I used an rDNA prototype with no flanking regions, the first and last couple of polymorphisms might be artifacts from the alignment (i.e. parts of reads). So I am removing them here:
+S288C_filtered <- subset(S288C_filtered, POS>10 & POS <9100)
+
+#for indels with high GC content
+#define function first
+#function requires loaded "tidyverse"
+gc_indel <- function(indel) {
+  gc_content <- (
+    (str_count(indel, "C") + str_count(indel, "G"))/nchar(indel)
+  )
+  if (nchar(indel) > 5 & gc_content > 0.6) {
+      return(0)} else {return(1)}
+}
+GC<-as.data.frame(S288C_filtered$REF)
+GC$res <- apply(GC,1,gc_indel) #calculates the gc_indel function. It returns '1' is passes the filter (INDEL is either <5 nt or >5 but GC% <0.6) or '0' if don't
+S288C_filtered <- subset(S288C_filtered, 
+                        GC$res==1
+                        ) #subset here for GC content and homopolymer tracts
+S288C_filtered
+#NB: I am keeping possible false-positives and variants with very low freq here so far, it will be explored downstream
+#SB filter (added 07/16/20)
+quantile((subset(S288C_filtered, SB!=2147483647))$SB, 0.9) #returns 247.5
+S288C_filtered<-subset(S288C_filtered, SB<247)
+
+```
+#Plotting some data
+```{r}
+#plot allele frequencies in %
+plot(S288C_filtered$POS, (S288C_filtered$AF)*100, col="blue", xlim = c(1,9137), ylim = c(0,100), pch=16,
+     xlab="Position, nt",
+     ylab="AF,%")
+```
+
+#For SK1
+
+```{r}
+#SK1:S288C(%) 100:0
+SK1_S288C_100_0 <- read.table("~/Desktop/work/rDNA_project/benchmarking/titration/SK1_S288C_100_0.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+SK1_S288C_100_0 <- as.data.frame(SK1_S288C_100_0)
+colnames(SK1_S288C_100_0) <- vcf_col_names
+SK1_S288C_100_0 <- SK1_S288C_100_0 %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+SK1_S288C_100_0$REF<-as.character(SK1_S288C_100_0$REF)
+SK1_S288C_100_0$DP<-as.integer(gsub("[A-Z]*=","",SK1_S288C_100_0$DP))
+SK1_S288C_100_0$AF<-as.numeric(gsub("[A-Z]*=","",SK1_S288C_100_0$AF)) 
+SK1_S288C_100_0$SB<-as.integer(gsub("[A-Z]*=","",SK1_S288C_100_0$SB))
+SK1_S288C_100_0$DP4<-as.factor(gsub("[A-Z]*4=","",SK1_S288C_100_0$DP4))
+SK1_S288C_100_0$HRUN<-as.integer(gsub("[A-Z]*=","",SK1_S288C_100_0$HRUN))
+
+SK1_S288C_100_0_filtered <- subset(SK1_S288C_100_0, HRUN<4 | is.na(HRUN))
+SK1_S288C_100_0_filtered <- subset(SK1_S288C_100_0_filtered, POS>10 & POS <9100)
+
+GC1<-as.data.frame(SK1_S288C_100_0_filtered$REF)
+GC1$res <- apply(GC1,1,gc_indel)
+SK1_S288C_100_0_filtered <- subset(SK1_S288C_100_0_filtered, 
+                        GC1$res==1
+                        )
+SK1_S288C_100_0_filtered
+
+```
+#plotting
+```{r}
+#i am plotting AF in percentage here
+plot(S288C_filtered$POS, (S288C_filtered$AF)*100, col="blue", xlim = c(1,9137), ylim = c(0,100), pch=16)
+points(SK1_S288C_100_0_filtered$POS, (SK1_S288C_100_0_filtered$AF)*100, col="red", pch=16)
+#find intersection between positions
+shared_pos <- intersect(S288C_filtered$POS,SK1_S288C_100_0_filtered$POS)
+abline(v=shared_pos) #plot where positions of variants are the same
+abline(h=0.5, lty=2, col="maroon") #I got this treshold for sensitivity from titration (see below)
+```
+
+
+#Titration
+```{r}
+#these files contain only unique for SK1 variants
+#SK1 reads : S288C reads(%) 100:0
+SK1_S288C_100_0_u <- read.table("~/Desktop/work/rDNA_project/benchmarking/titration/SK1_unique/SK1_S288C_100_0_uniq_filt.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+SK1_S288C_100_0_u <- as.data.frame(SK1_S288C_100_0_u)
+colnames(SK1_S288C_100_0_u) <- vcf_col_names
+SK1_S288C_100_0_u <- SK1_S288C_100_0_u %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+SK1_S288C_100_0_u$REF<-as.character(SK1_S288C_100_0_u$REF)
+SK1_S288C_100_0_u$DP<-as.integer(gsub("[A-Z]*=","",SK1_S288C_100_0_u$DP))
+SK1_S288C_100_0_u$AF<-as.numeric(gsub("[A-Z]*=","",SK1_S288C_100_0_u$AF)) 
+SK1_S288C_100_0_u$SB<-as.integer(gsub("[A-Z]*=","",SK1_S288C_100_0_u$SB))
+SK1_S288C_100_0_u$DP4<-as.factor(gsub("[A-Z]*4=","",SK1_S288C_100_0_u$DP4))
+SK1_S288C_100_0_u$HRUN<-as.integer(gsub("[A-Z]*=","",SK1_S288C_100_0_u$HRUN))
+
+SK1_S288C_100_0_u_filtered <- subset(SK1_S288C_100_0_u, HRUN<4 | is.na(HRUN))
+SK1_S288C_100_0_u_filtered <- subset(SK1_S288C_100_0_u_filtered, POS>10 & POS <9100)
+
+GC1<-as.data.frame(SK1_S288C_100_0_u_filtered$REF)
+GC1$res <- apply(GC1,1,gc_indel)
+SK1_S288C_100_0_u_filtered <- subset(SK1_S288C_100_0_u_filtered, 
+                        GC1$res==1
+                        )
+
+#SK1 reads : S288C reads(%) 50:50
+SK1_S288C_50_50_u <- read.table("~/Desktop/work/rDNA_project/benchmarking/titration/SK1_unique/SK1_S288C_50_50_uniq_filt.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+SK1_S288C_50_50_u <- as.data.frame(SK1_S288C_50_50_u)
+colnames(SK1_S288C_50_50_u) <- vcf_col_names
+SK1_S288C_50_50_u <- SK1_S288C_50_50_u %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+SK1_S288C_50_50_u$REF<-as.character(SK1_S288C_50_50_u$REF)
+SK1_S288C_50_50_u$DP<-as.integer(gsub("[A-Z]*=","",SK1_S288C_50_50_u$DP))
+SK1_S288C_50_50_u$AF<-as.numeric(gsub("[A-Z]*=","",SK1_S288C_50_50_u$AF)) 
+SK1_S288C_50_50_u$SB<-as.integer(gsub("[A-Z]*=","",SK1_S288C_50_50_u$SB))
+SK1_S288C_50_50_u$DP4<-as.factor(gsub("[A-Z]*4=","",SK1_S288C_50_50_u$DP4))
+SK1_S288C_50_50_u$HRUN<-as.integer(gsub("[A-Z]*=","",SK1_S288C_50_50_u$HRUN))
+
+SK1_S288C_50_50_u_filtered <- subset(SK1_S288C_50_50_u, HRUN<4 | is.na(HRUN))
+SK1_S288C_50_50_u_filtered <- subset(SK1_S288C_50_50_u_filtered, POS>10 & POS <9100)
+
+GC1<-as.data.frame(SK1_S288C_50_50_u_filtered$REF)
+GC1$res <- apply(GC1,1,gc_indel)
+SK1_S288C_50_50_u_filtered <- subset(SK1_S288C_50_50_u_filtered, 
+                        GC1$res==1
+                        )
+
+#SK1 reads : S288C reads(%) 10:90
+SK1_S288C_10_90_u <- read.table("~/Desktop/work/rDNA_project/benchmarking/titration/SK1_unique/SK1_S288C_10_90_uniq_filt.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+SK1_S288C_10_90_u <- as.data.frame(SK1_S288C_10_90_u)
+colnames(SK1_S288C_10_90_u) <- vcf_col_names
+SK1_S288C_10_90_u <- SK1_S288C_10_90_u %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+SK1_S288C_10_90_u$REF<-as.character(SK1_S288C_10_90_u$REF)
+SK1_S288C_10_90_u$DP<-as.integer(gsub("[A-Z]*=","",SK1_S288C_10_90_u$DP))
+SK1_S288C_10_90_u$AF<-as.numeric(gsub("[A-Z]*=","",SK1_S288C_10_90_u$AF)) 
+SK1_S288C_10_90_u$SB<-as.integer(gsub("[A-Z]*=","",SK1_S288C_10_90_u$SB))
+SK1_S288C_10_90_u$DP4<-as.factor(gsub("[A-Z]*4=","",SK1_S288C_10_90_u$DP4))
+SK1_S288C_10_90_u$HRUN<-as.integer(gsub("[A-Z]*=","",SK1_S288C_10_90_u$HRUN))
+
+SK1_S288C_10_90_u_filtered <- subset(SK1_S288C_10_90_u, HRUN<4 | is.na(HRUN))
+SK1_S288C_10_90_u_filtered <- subset(SK1_S288C_10_90_u_filtered, POS>10 & POS <9100)
+
+GC1<-as.data.frame(SK1_S288C_10_90_u_filtered$REF)
+GC1$res <- apply(GC1,1,gc_indel)
+SK1_S288C_10_90_u_filtered <- subset(SK1_S288C_10_90_u_filtered, 
+                        GC1$res==1
+                        )
+
+#SK1 reads : S288C reads(%) 1:99
+SK1_S288C_1_99_u <- read.table("~/Desktop/work/rDNA_project/benchmarking/titration/SK1_unique/SK1_S288C_1_99_uniq_filt.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+SK1_S288C_1_99_u <- as.data.frame(SK1_S288C_1_99_u)
+colnames(SK1_S288C_1_99_u) <- vcf_col_names
+SK1_S288C_1_99_u <- SK1_S288C_1_99_u %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+SK1_S288C_1_99_u$REF<-as.character(SK1_S288C_1_99_u$REF)
+SK1_S288C_1_99_u$DP<-as.integer(gsub("[A-Z]*=","",SK1_S288C_1_99_u$DP))
+SK1_S288C_1_99_u$AF<-as.numeric(gsub("[A-Z]*=","",SK1_S288C_1_99_u$AF)) 
+SK1_S288C_1_99_u$SB<-as.integer(gsub("[A-Z]*=","",SK1_S288C_1_99_u$SB))
+SK1_S288C_1_99_u$DP4<-as.factor(gsub("[A-Z]*4=","",SK1_S288C_1_99_u$DP4))
+SK1_S288C_1_99_u$HRUN<-as.integer(gsub("[A-Z]*=","",SK1_S288C_1_99_u$HRUN))
+
+SK1_S288C_1_99_u_filtered <- subset(SK1_S288C_1_99_u, HRUN<4 | is.na(HRUN))
+SK1_S288C_1_99_u_filtered <- subset(SK1_S288C_1_99_u_filtered, POS>10 & POS <9100)
+
+GC1<-as.data.frame(SK1_S288C_1_99_u_filtered$REF)
+GC1$res <- apply(GC1,1,gc_indel)
+SK1_S288C_1_99_u_filtered <- subset(SK1_S288C_1_99_u_filtered, 
+                        GC1$res==1
+                        )
+
+#SK1 reads : S288C reads(%) 0.5:99.5
+SK1_S288C_05_99_u <- read.table("~/Desktop/work/rDNA_project/benchmarking/titration/SK1_unique/SK1_S288C_05_99_uniq_filt.vcf",
+                    "\t",
+                    header = F,
+                    comment.char = "#")
+SK1_S288C_05_99_u <- as.data.frame(SK1_S288C_05_99_u)
+colnames(SK1_S288C_05_99_u) <- vcf_col_names
+SK1_S288C_05_99_u <- SK1_S288C_05_99_u %>% separate("INFO",
+                   c("DP","AF","SB","DP4","INDEL","HRUN"),
+                   sep=";"
+                   )
+SK1_S288C_05_99_u$REF<-as.character(SK1_S288C_05_99_u$REF)
+SK1_S288C_05_99_u$DP<-as.integer(gsub("[A-Z]*=","",SK1_S288C_05_99_u$DP))
+SK1_S288C_05_99_u$AF<-as.numeric(gsub("[A-Z]*=","",SK1_S288C_05_99_u$AF)) 
+SK1_S288C_05_99_u$SB<-as.integer(gsub("[A-Z]*=","",SK1_S288C_05_99_u$SB))
+SK1_S288C_05_99_u$DP4<-as.factor(gsub("[A-Z]*4=","",SK1_S288C_05_99_u$DP4))
+SK1_S288C_05_99_u$HRUN<-as.integer(gsub("[A-Z]*=","",SK1_S288C_05_99_u$HRUN))
+
+SK1_S288C_05_99_u_filtered <- subset(SK1_S288C_05_99_u, HRUN<4 | is.na(HRUN))
+SK1_S288C_05_99_u_filtered <- subset(SK1_S288C_05_99_u_filtered, POS>10 & POS <9100)
+
+GC1<-as.data.frame(SK1_S288C_05_99_u_filtered$REF)
+GC1$res <- apply(GC1,1,gc_indel)
+SK1_S288C_05_99_u_filtered <- subset(SK1_S288C_05_99_u_filtered, 
+                        GC1$res==1
+                        )
+#lower titrations led to undetectable SK1-unique variants:
+#SK1 reads : S288C reads(%) 0.1:99.9 
+#SK1 reads : S288C reads(%) 0.05:99.95
+#SK1 reads : S288C reads(%) 0.01:99.99
+```
+
+```{r}
+plot(SK1_S288C_100_0_u_filtered$POS, SK1_S288C_100_0_u_filtered$AF, xlim = c(1,9137), ylim = c(0,1), col="red", pch=15)
+points(SK1_S288C_50_50_u_filtered$POS, SK1_S288C_50_50_u_filtered$AF, col="orange", pch=15)
+points(SK1_S288C_10_90_u_filtered$POS, SK1_S288C_10_90_u_filtered$AF, col="yellow", pch=15)
+points(SK1_S288C_1_99_u_filtered$POS, SK1_S288C_1_99_u_filtered$AF, col="green", pch=15)
+points(SK1_S288C_05_99_u_filtered$POS, SK1_S288C_05_99_u_filtered$AF, col="blue", pch=15)
+```
+#Plot titrations
+```{r}
+SK1_S288C_100_0_AF_98 <- subset(SK1_S288C_100_0_u_filtered, AF>=0.98)
+SK1_S288C_100_0_AF_98
+SK1_S288C_100_0_titr <- data.frame(
+  POS = c(SK1_S288C_100_0_AF_98$POS),
+  AF = c(SK1_S288C_100_0_AF_98$AF),
+  SK1_percent = rep(c(100), nrow(SK1_S288C_100_0_AF_98)))
+
+SK1_S288C_50_50_titr <- subset(SK1_S288C_50_50_u_filtered, SK1_S288C_50_50_u_filtered$POS %in% SK1_S288C_100_0_titr$POS) #subset values based on SK1_S288C_100_0_AF_98 (meaning those that have AF>=98% in the SK1 unique datases)
+#create a dataframe with POS, AF, and SK1_percent read
+SK1_S288C_50_50_titr <- data.frame(
+  POS = c(SK1_S288C_50_50_titr$POS),
+  AF = c(SK1_S288C_50_50_titr$AF),
+  SK1_percent = rep(c(50), nrow(SK1_S288C_50_50_titr))
+)
+#do the same for the rest of titrations
+#NB:some titrations have new variants emerged, (false positives?), BUT they will be excluded from the analysis if analyzing this way. They need to be treated separately
+
+#
+SK1_S288C_10_90_titr <- subset(SK1_S288C_10_90_u_filtered, SK1_S288C_10_90_u_filtered$POS %in% SK1_S288C_100_0_titr$POS)
+SK1_S288C_10_90_titr <- data.frame(
+  POS = c(SK1_S288C_10_90_titr$POS),
+  AF = c(SK1_S288C_10_90_titr$AF),
+  SK1_percent = rep(c(10), nrow(SK1_S288C_10_90_titr))
+)
+#
+SK1_S288C_1_99_titr <- subset(SK1_S288C_1_99_u_filtered, SK1_S288C_1_99_u_filtered$POS %in% SK1_S288C_100_0_titr$POS)
+SK1_S288C_1_99_titr <- data.frame(
+  POS = c(SK1_S288C_1_99_titr$POS),
+  AF = c(SK1_S288C_1_99_titr$AF),
+  SK1_percent = rep(c(1), nrow(SK1_S288C_1_99_titr))
+)
+
+#
+SK1_S288C_05_99_titr <- subset(SK1_S288C_05_99_u_filtered, SK1_S288C_05_99_u_filtered$POS %in% SK1_S288C_100_0_titr$POS)
+SK1_S288C_05_99_titr <- data.frame(
+  POS = c(SK1_S288C_05_99_titr$POS),
+  AF = c(SK1_S288C_05_99_titr$AF),
+  SK1_percent = rep(c(0.5), nrow(SK1_S288C_05_99_titr))
+)
+
+SK1_S288C_50_50_titr
+SK1_S288C_10_90_titr
+SK1_S288C_1_99_titr
+SK1_S288C_05_99_titr
+
+titration <- rbind(SK1_S288C_100_0_titr, SK1_S288C_50_50_titr, SK1_S288C_10_90_titr, SK1_S288C_1_99_titr, SK1_S288C_05_99_titr)
+titration$POS <-as.factor(titration$POS)
+titration
+#can use coef(lm()) to calculate slope and intersept BUT be careful!
+p1<- ggplot(data=titration, aes(x=(SK1_percent), y=(AF)*100))+
+  geom_line(aes(color=POS))+
+  geom_point(aes(color=POS))+
+  geom_abline(slope=-1, intercept=1)+ #here intercept = 1 because AF is 1!!!!! (100 is displayed in percents but data in the dataframe is NOR in percentage!!)
+  scale_x_reverse()
+#plot 1%-0.5% range
+#lines need to be recolorored to match the ones on the full plot
+#to retrieve used colors:
+ggplot_build(p1)$data[[1]]$colour
+colgraph<-c("#F8766D","#D89000","#A3A500","#39B600", "#9590FF","#E76BF3","#FF62BC","#F8766D","#D89000","#A3A500","#39B600", "#9590FF","#E76BF3","#FF62BC") #note that values are duplicated and in order with values in the trunctated titration dataframe in the following ggplot:
+p2<- ggplot(data=titration[30:nrow(titration),], aes(x=(SK1_percent), y=(AF)*100))+
+  geom_line(aes(col=POS))+
+  geom_point(aes(col=POS))+
+  geom_abline(slope=-1, intercept=0.01)+
+  scale_x_reverse()+
+  scale_color_manual(values=colgraph)+
+  theme(axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.position = "none",
+        plot.background = element_blank())
+# also can play with ggplotly(p1)
+titr<-p1 + annotation_custom(ggplotGrob(p2),
+                       xmin=6, xmax=-47, ymin=49, ymax=104)
+titr
+#ggsave(file="titration.svg", plot=titr, width=10, height = 8) #can use .pdf too
+pdf("titration.pdf")
+print(titr)
+dev.off()
+```
+#A glimpse on some false-positives (just preliminary look, more thorough analysis will be in another protocol)
+```{r}
+#some titrations have new variants emerged, (false positives?):
+SK1_S288C_50_50_new_arised <- subset(SK1_S288C_50_50_u_filtered, !(SK1_S288C_50_50_u_filtered$POS %in% SK1_S288C_100_0_u_filtered$POS)) #extract values that emerged in SK1_S288C_50_50 titratioo but are not present in SK1:S288C 100:0 dataset
+#do the same for the rest
+SK1_S288C_10_90_new_arised <- subset(SK1_S288C_10_90_u_filtered, !(SK1_S288C_10_90_u_filtered$POS %in% SK1_S288C_100_0_u_filtered$POS))
+SK1_S288C_1_99_new_arised <- subset(SK1_S288C_1_99_u_filtered, !(SK1_S288C_1_99_u_filtered$POS %in% SK1_S288C_100_0_u_filtered$POS))
+SK1_S288C_05_99_new_arised <- subset(SK1_S288C_05_99_u_filtered, !(SK1_S288C_05_99_u_filtered$POS %in% SK1_S288C_100_0_u_filtered$POS))
+
+SK1_S288C_50_50_new_arised
+SK1_S288C_10_90_new_arised
+SK1_S288C_1_99_new_arised
+SK1_S288C_05_99_new_arised
+
+#HERE I AM PLOTTING PERCENTAGE TOO!
+#mai=c(bottom,left,)
+par(mfrow=c(4,1), mai=c(0.1,0.5,0.2,0.2))
+plot(SK1_S288C_50_50_new_arised$POS, (SK1_S288C_50_50_new_arised$AF)*100, col="blue", pch=16, xlim = c(1,9137), ylim = c(0,0.6),
+     xlab = "", ylab = "AF, %",
+     xaxt='n')
+#mtext("100% SK1 reads", side = 4)
+abline(h=0.5, col="red")
+
+plot(SK1_S288C_10_90_new_arised$POS, (SK1_S288C_10_90_new_arised$AF)*100, col="blue", pch=16, xlim = c(1,9137), ylim = c(0,0.6),
+     xlab = "", ylab = "AF, %",
+     xaxt='n')
+abline(h=0.5, col="red")
+
+plot(SK1_S288C_1_99_new_arised$POS, (SK1_S288C_1_99_new_arised$AF)*100, col="blue", pch=16, xlim = c(1,9137), ylim = c(0,0.6),
+     xlab = "", ylab = "AF, %",
+     xaxt='n')
+abline(h=0.5, col="red")
+
+plot(SK1_S288C_05_99_new_arised$POS, (SK1_S288C_05_99_new_arised$AF)*100, col="blue", pch=16, xlim = c(1,9137), ylim = c(0,0.6),
+     xlab = "Position, nt", ylab = "AF, %",
+     )
+abline(h=0.5, col="red")
+```
+
+#distribution of SNPs and INDELs
+```{r}
+#this is a really basic look at the data. I counted snps, in and dels 'manually' now, but it can be coded pretty straightforward (I will do it eventually)
+
+#first, apply the calculated threshold (AF<0.5% same as AF<0.005)
+s288c_threshold_pass <- subset(S288C_filtered, AF*100 > 0.5) #here do not forget to AF*100 bc they are not stored as % in df
+sk1_threshold_pass <- subset(SK1_S288C_100_0_filtered, AF*100 > 0.5)
+s288c_threshold_pass
+sk1_threshold_pass
+#snp, in, del
+par(mfrow=c(1,2))
+s288c_slices <- c(19,1,3)
+sk1_slices <- c(18,2,3)
+labels_pie_char <- c("SNP", "In", "Del")
+
+pie(s288c_slices, labels = labels_pie_char, main = "S288C", col = c("skyblue", "pink", "orange"))
+pie(sk1_slices, labels = labels_pie_char, main = "SK1", col = c("skyblue", "pink", "orange"))
+
+#also in the final filtered data, 6 positios are shared between s288c and sk1. they also have the same variants
+
+```
